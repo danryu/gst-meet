@@ -921,7 +921,7 @@ impl JingleSession {
                 if let Some(sink_pad) = participant_bin.static_pad(sink_pad_name) {
                   debug!("linking depayloader to participant bin");
                   src_pad.link(&sink_pad).context(
-                    "failed to link decode chain to participant bin from recv participant pipeline",
+                    "failed to link depayload chain to participant bin from recv participant pipeline",
                   )?;
                   info!(
                     "linked {}/{:?} to recv participant pipeline",
