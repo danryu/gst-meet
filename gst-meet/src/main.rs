@@ -453,7 +453,8 @@ async fn main_inner() -> Result<()> {
                     .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
                     .collect::<String>()
                 })
-                .unwrap_or_default();
+                .unwrap_or_default(),
+            );
 
           let bin = gstreamer::parse_bin_from_description(&pipeline_description, false)
             .context("failed to parse recv pipeline participant template")?;
