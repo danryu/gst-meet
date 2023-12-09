@@ -944,7 +944,7 @@ impl JingleSession {
 
                 src_pad
                   .link(&ghost_pad)
-                  .context("failed to link decode chain to participant bin from recv pipeline")?;
+                  .context("failed to link parse chain to participant bin from recv pipeline")?;
                 info!(
                   "linked {}/{:?} to new pad in recv pipeline",
                   participant_id, source.media_type
@@ -982,7 +982,7 @@ impl JingleSession {
             }
 
             if !src_pad.is_linked() {
-              debug!("nothing linked to decoder, adding fakesink");
+              debug!("nothing linked to parser, adding fakesink");
               let fakesink = gstreamer::ElementFactory::make("fakesink").build()?;
               pipeline.add(&fakesink)?;
               fakesink.sync_state_with_parent()?;
