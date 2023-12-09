@@ -873,24 +873,14 @@ impl JingleSession {
 
             debug!("rtpbin pads:\n{}", dump_pads(&rtpbin));
 
-            let queue = gstreamer::ElementFactory::make("queue").build()?;
-            pipeline
-              .add(&queue)
-              .context("failed to add queue to pipeline")?;
-            queue.sync_state_with_parent()?;
-            depayloader
-              .link(&queue)
-              .context("failed to link depayloader to queue")?;
-
-            let decoder = match source.media_type {
+            let parser = match source.media_type {
               MediaType::Audio => {
                 let codec = codecs
                   .iter()
                   .filter(|codec| codec.is_audio())
                   .find(|codec| codec.is(pt));
                 if let Some(codec) = codec {
-                  gstreamer::ElementFactory::make(codec.decoder_name()).build()?
-                  // TODO: fec
+                  gstreamer::ElementFactory::make(codec.parser_name()).build()?
                 }
                 else {
                   bail!("received audio with unsupported PT {}", pt);
@@ -902,13 +892,7 @@ impl JingleSession {
                   .filter(|codec| codec.is_video())
                   .find(|codec| codec.is(pt));
                 if let Some(codec) = codec {
-                  let decoder = gstreamer::ElementFactory::make(codec.decoder_name()).build()?;
-                  decoder.set_property("automatic-request-sync-points", true);
-                  decoder.set_property_from_str(
-                    "automatic-request-sync-point-flags",
-                    "GST_VIDEO_DECODER_REQUEST_SYNC_POINT_CORRUPT_OUTPUT",
-                  );
-                  decoder
+                  gstreamer::ElementFactory::make(codec.parser_name()).build()?
                 }
                 else {
                   bail!("received video with unsupported PT {}", pt);
@@ -917,58 +901,18 @@ impl JingleSession {
             };
 
             pipeline
-              .add(&decoder)
-              .context("failed to add decoder to pipeline")?;
-            decoder.sync_state_with_parent()?;
-            queue
-              .link(&decoder)
-              .context("failed to link queue to decoder")?;
+              .add(&parser)
+              .context("failed to add parser to pipeline")?;
+            parser.sync_state_with_parent()?;
+            debug!("created parser");
+            depayloader
+              .link(&parser)
+              .context("failed to link depayloader to parser")?;
+            debug!("linked depayloader to parser");
 
-            let src_pad = match source.media_type {
-              MediaType::Audio => decoder
-                .static_pad("src")
-                .context("decoder has no src pad")?,
-              MediaType::Video => {
-                let videoscale = gstreamer::ElementFactory::make("videoscale").build()?;
-                pipeline
-                  .add(&videoscale)
-                  .context("failed to add videoscale to pipeline")?;
-                videoscale.sync_state_with_parent()?;
-                decoder
-                  .link(&videoscale)
-                  .context("failed to link decoder to videoscale")?;
-
-                let capsfilter = gstreamer::ElementFactory::make("capsfilter").build()?;
-                capsfilter.set_property_from_str(
-                  "caps",
-                  &format!(
-                    "video/x-raw, width={}, height={}",
-                    conference.config.recv_video_scale_width,
-                    conference.config.recv_video_scale_height
-                  ),
-                );
-                pipeline
-                  .add(&capsfilter)
-                  .context("failed to add capsfilter to pipeline")?;
-                capsfilter.sync_state_with_parent()?;
-                videoscale
-                  .link(&capsfilter)
-                  .context("failed to link videoscale to capsfilter")?;
-
-                let videoconvert = gstreamer::ElementFactory::make("videoconvert").build()?;
-                pipeline
-                  .add(&videoconvert)
-                  .context("failed to add videoconvert to pipeline")?;
-                videoconvert.sync_state_with_parent()?;
-                capsfilter
-                  .link(&videoconvert)
-                  .context("failed to link capsfilter to videoconvert")?;
-
-                videoconvert
-                  .static_pad("src")
-                  .context("videoconvert has no src pad")?
-              },
-            };
+            let src_pad = parser
+              .static_pad("src")
+              .context("parser has no src pad")?;
 
             if let Some(participant_id) = source.participant_id {
               handle.block_on(conference.ensure_participant(&participant_id))?;
