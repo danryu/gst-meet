@@ -449,7 +449,7 @@ async fn main_inner() -> Result<()> {
                 .map(|nick| {
                   nick
                     .chars()
-                    .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+                    .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
                     .collect::<String>()
                 })
                 .unwrap_or_default(),
