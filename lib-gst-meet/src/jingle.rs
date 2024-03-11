@@ -894,10 +894,15 @@ impl JingleSession {
                   .find(|codec| codec.is(pt));
                 if let Some(codec) = codec {
                   let decoder = gstreamer::ElementFactory::make(codec.decoder_name()).build()?;
+                  decoder.set_property(" discard-corrupted-frames", true);
                   decoder.set_property("automatic-request-sync-points", true);
                   decoder.set_property_from_str(
                     "automatic-request-sync-point-flags",
                     "GST_VIDEO_DECODER_REQUEST_SYNC_POINT_CORRUPT_OUTPUT",
+                  );
+                  decoder.set_property_from_str(
+                    "automatic-request-sync-point-flags",
+                    "GST_VIDEO_DECODER_REQUEST_SYNC_POINT_DISCARD_INPUT",
                   );
                   decoder
                 }
