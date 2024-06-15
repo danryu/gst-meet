@@ -903,8 +903,6 @@ impl JingleSession {
 
             debug!("linked rtpbin.{} to depayloader", pad_name);
 
-            // debug!("rtpbin pads:\n{}", dump_pads(&rtpbin));
-
             let src_pad = depayloader
               .static_pad("src")
               .context("depayloader has no src pad")?;
