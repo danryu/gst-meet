@@ -53,6 +53,7 @@ libc = { version = "0.2", default-features = false }
 glib = { version = "0.19", default-features = false }
 gio = { version = "0.19", default-features = false }
 gobject-sys = { version = "0.19", default-features = false }
+windows-sys = { version = "0.59", default-features = false, features = ["Win32_Networking_WinSock"] }
 
 [build-dependencies]
 system-deps = { version = "6", default-features = false }

@@ -10,7 +10,104 @@ use std::{
 use glib::translate::*;
 use libc::c_char;
 use nice_sys as ffi;
+
+#[cfg(unix)]
 use nix::sys::socket::{AddressFamily, SockaddrStorage};
+
+#[cfg(windows)]
+use windows_sys::Win32::Networking::WinSock::{
+    SOCKADDR_STORAGE, SOCKADDR, SOCKADDR_IN, SOCKADDR_IN6, AF_INET, AF_INET6, IN_ADDR, IN6_ADDR, IN6_ADDR_0,
+};
+
+/// A universal container for any WinSock address.
+/// On Windows, you can cast or interpret it as SOCKADDR_IN or SOCKADDR_IN6, etc.
+#[cfg(windows)]
+#[repr(transparent)]
+#[derive(Clone, Copy)]
+pub struct SockaddrStorageW {
+    pub storage: SOCKADDR_STORAGE,
+}
+
+#[cfg(windows)]
+impl SockaddrStorageW {
+    /// Construct from a high-level Rust `SocketAddr`, producing a
+    /// WinSock-compatible SOCKADDR_STORAGE in `self.storage`.
+    pub fn from_rust_socketaddr(addr: &std::net::SocketAddr) -> Self {
+        let mut storage: SOCKADDR_STORAGE = unsafe { std::mem::zeroed() };
+
+        match addr {
+            // ---- IPv4 ----
+            std::net::SocketAddr::V4(v4) => {
+                let ip_bytes = v4.ip().octets(); // e.g. [127, 0, 0, 1]
+                let port = v4.port().to_be();     // network byte order
+
+                // Cast our `storage` to a pointer to a SOCKADDR_IN
+                let sin_ptr = &mut storage as *mut SOCKADDR_STORAGE as *mut SOCKADDR_IN;
+                unsafe {
+                    (*sin_ptr).sin_family = AF_INET as u16;
+                    (*sin_ptr).sin_port   = port;
+                    (*sin_ptr).sin_addr   = IN_ADDR {
+                        S_un: windows_sys::Win32::Networking::WinSock::IN_ADDR_0 {
+                            S_addr: u32::from_ne_bytes(ip_bytes),
+                        }
+                    };
+                }
+            }
+
+            // ---- IPv6 ----
+            std::net::SocketAddr::V6(v6) => {
+                let ip_bytes = v6.ip().octets(); // 16 bytes
+                let port     = v6.port().to_be();
+
+                let sin6_ptr = &mut storage as *mut SOCKADDR_STORAGE as *mut SOCKADDR_IN6;
+                unsafe {
+                    (*sin6_ptr).sin6_family  = AF_INET6 as u16;
+                    (*sin6_ptr).sin6_port    = port;
+                    (*sin6_ptr).sin6_flowinfo = 0;
+
+                    // In newer windows-sys, `IN6_ADDR { u: [u8; 16] }`.
+                    // In older versions, you may need to set a sub-union.
+                    // (*sin6_ptr).sin6_addr = IN6_ADDR { u: ip_bytes };
+                    (*sin6_ptr).sin6_addr = IN6_ADDR {
+                      u: IN6_ADDR_0 {
+                          Byte: ip_bytes
+                      }
+                    };
+
+                    // In windows-sys, sin6_scope_id is inside `Anonymous`
+                    (*sin6_ptr).Anonymous.sin6_scope_id = v6.scope_id();
+                }
+            }
+        }
+
+        SockaddrStorageW { storage }
+    }
+
+    /// Returns the address family (AF_INET, AF_INET6, etc.)
+    pub fn family(&self) -> u16 {
+        self.storage.ss_family
+    }
+
+    /// Try to interpret `self.storage` as an IPv4 `SOCKADDR_IN`.
+    pub fn as_ipv4(&self) -> Option<SOCKADDR_IN> {
+        if self.family() == AF_INET as u16 {
+            let ptr = &self.storage as *const SOCKADDR_STORAGE as *const SOCKADDR_IN;
+            Some(unsafe { *ptr })
+        } else {
+            None
+        }
+    }
+
+    /// Try to interpret `self.storage` as an IPv6 `SOCKADDR_IN6`.
+    pub fn as_ipv6(&self) -> Option<SOCKADDR_IN6> {
+        if self.family() == AF_INET6 as u16 {
+            let ptr = &self.storage as *const SOCKADDR_STORAGE as *const SOCKADDR_IN6;
+            Some(unsafe { *ptr })
+        } else {
+            None
+        }
+    }
+}
 
 #[cfg(any(feature = "v0_1_18", feature = "dox"))]
 #[cfg_attr(feature = "dox", doc(cfg(feature = "v0_1_18")))]
@@ -67,26 +164,49 @@ impl Candidate {
     self.inner.transport = transport.into_glib();
   }
 
+  #[cfg(not(windows))]
   pub fn addr(&self) -> SocketAddr {
-    unsafe {
-      match AddressFamily::from_i32(self.inner.addr.s.addr.sa_family as i32).unwrap() {
-        AddressFamily::Inet => SocketAddrV4::new(
-          self.inner.addr.s.ip4.sin_addr.s_addr.into(),
-          self.inner.addr.s.ip4.sin_port,
-        )
-        .into(),
-        AddressFamily::Inet6 => SocketAddrV6::new(
-          self.inner.addr.s.ip6.sin6_addr.s6_addr.into(),
-          self.inner.addr.s.ip6.sin6_port,
-          self.inner.addr.s.ip6.sin6_flowinfo,
-          self.inner.addr.s.ip6.sin6_scope_id,
-        )
-        .into(),
-        other => panic!("unsupported address family: {:?}", other),
+      unsafe {
+          match AddressFamily::from_i32(self.inner.addr.s.addr.sa_family as i32).unwrap() {
+              AddressFamily::Inet => SocketAddrV4::new(
+                  self.inner.addr.s.ip4.sin_addr.s_addr.into(),
+                  self.inner.addr.s.ip4.sin_port,
+              )
+              .into(),
+              AddressFamily::Inet6 => SocketAddrV6::new(
+                  self.inner.addr.s.ip6.sin6_addr.s6_addr.into(),
+                  self.inner.addr.s.ip6.sin6_port,
+                  self.inner.addr.s.ip6.sin6_flowinfo,
+                  self.inner.addr.s.ip6.sin6_scope_id,
+              )
+              .into(),
+              other => panic!("unsupported address family: {:?}", other),
+          }
       }
-    }
   }
 
+  #[cfg(windows)]
+  pub fn addr(&self) -> SocketAddr {
+      unsafe {
+          match self.inner.addr.s.addr.sa_family as u16 {
+              AF_INET => SocketAddrV4::new(
+                  self.inner.addr.s.ip4.sin_addr.S_un.S_addr.into(),
+                  self.inner.addr.s.ip4.sin_port,
+              )
+              .into(),
+              AF_INET6 => SocketAddrV6::new(
+                  self.inner.addr.s.ip6.sin6_addr.u.Byte.into(),
+                  self.inner.addr.s.ip6.sin6_port,
+                  self.inner.addr.s.ip6.sin6_flowinfo,
+                  self.inner.addr.s.ip6.Anonymous.sin6_scope_id,
+              )
+              .into(),
+              other => panic!("unsupported address family: {}", other),
+          }
+      }
+  }
+
+  #[cfg(not(windows))]
   pub fn set_addr(&mut self, addr: SocketAddr) {
     let sockaddr = SockaddrStorage::from(addr);
     if let Some(v4) = sockaddr.as_sockaddr_in() {
@@ -99,6 +219,28 @@ impl Candidate {
       unsafe {
         ffi::nice_address_set_ipv6(&mut self.inner.addr as *mut _, v6.ip().octets().as_ptr());
         ffi::nice_address_set_port(&mut self.inner.addr as *mut _, v6.port() as u32);
+      }
+    }
+    else {
+      panic!("unsupported address family");
+    }
+  }
+
+  #[cfg(windows)]
+  pub fn set_addr(&mut self, addr: SocketAddr) {
+    let sockaddr = SockaddrStorageW::from_rust_socketaddr(&addr);
+    if let Some(v4) = sockaddr.as_ipv4() {
+      unsafe {
+        ffi::nice_address_set_ipv4(&mut self.inner.addr as *mut _, v4.sin_addr.S_un.S_addr.into());
+        // ffi::nice_address_set_port(&mut self.inner.addr as *mut _, v4.sin_port);
+        ffi::nice_address_set_port(&mut self.inner.addr as *mut _, v4.sin_port.into());
+      }
+    }
+    else if let Some(v6) = sockaddr.as_ipv6() {
+      unsafe {
+        ffi::nice_address_set_ipv6(&mut self.inner.addr as *mut _, v6.sin6_addr.u.Byte.as_ptr());
+        // ffi::nice_address_set_port(&mut self.inner.addr as *mut _, v6.sin6_port);
+        ffi::nice_address_set_port(&mut self.inner.addr as *mut _, v6.sin6_port.into());
       }
     }
     else {

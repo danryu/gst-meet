@@ -12,6 +12,7 @@ glib = { version = "0.19", default-features = false }
 libc = { version = "0.2", default-features = false }
 nice-gst-meet-sys = { version = "0.3", path = "../nice-gst-meet-sys", default-features = false }
 nix = { version = "0.28", default-features = false, features = ["socket", "net"] }
+windows-sys = { version = "0.59", default-features = false, features = ["Win32_Networking_WinSock"] }
 
 [features]
 v0_1_4 = ["nice-gst-meet-sys/v0_1_4"]
