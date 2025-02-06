@@ -7,10 +7,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <glib.h>
+#include <glib/glib.h>
 #include <gst/gst.h>
 
-typedef struct Connection Connection;
+typedef struct JitsiConnection JitsiConnection;
 typedef struct JitsiConference JitsiConference;
 
 typedef struct Context Context;
@@ -74,4 +74,4 @@ bool gstmeet_conference_set_pipeline_state(struct Context *context,
                                            JitsiConference *conference,
                                            GstState state);
 
-#endif  /* gstmeet_h */
+#endif /* gstmeet_h */
