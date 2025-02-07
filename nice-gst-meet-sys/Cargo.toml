@@ -42,24 +42,38 @@ version = "0.1.18"
 [package.metadata.system-deps.nice.v0_1_20]
 version = "0.1.20"
 
+[package.metadata.system-deps.nice.v0_1_19]
+version = "0.1.19"
+
 [package.metadata.docs.rs]
 features = ["dox"]
+rustc-args = ["--cfg", "docsrs"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
 
 [lib]
 name = "nice_sys"
 
 [dependencies]
-libc = { version = "0.2", default-features = false }
-glib = { version = "0.19", default-features = false }
-gio = { version = "0.19", default-features = false }
-gobject-sys = { version = "0.19", default-features = false }
+libc = "0.2"
+
+[dependencies.glib]
+version = "0.19"
+default-features = false
+
+[dependencies.gio]
+version = "0.19"
+default-features = false
+
+[dependencies.gobject-sys]
+version = "0.19"
+default-features = false
 
 [build-dependencies]
-system-deps = { version = "6", default-features = false }
+system-deps = "7"
 
 [dev-dependencies]
-shell-words = { version = "1", default-features = false }
-tempfile = { version = "3", default-features = false }
+shell-words = "1.0.0"
+tempfile = "3"
 
 [features]
 v0_1_4 = []
@@ -71,5 +85,6 @@ v0_1_15 = ["v0_1_14"]
 v0_1_16 = ["v0_1_15"]
 v0_1_17 = ["v0_1_16"]
 v0_1_18 = ["v0_1_17"]
-v0_1_20 = ["v0_1_18"]
+v0_1_20 = ["v0_1_19"]
 dox = []
+v0_1_19 = ["v0_1_17"]

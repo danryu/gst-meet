@@ -18,3 +18,8 @@ generate = [
   "Nice.RelayType",
 ]
 manual = ["glib.MainContext"]
+
+girs_directories = [
+  "C:/Users/dan/Documents/code/libnice/build/nice",
+  "C:/vcpkg/installed/x64-windows/share/gir-1.0"
+]
