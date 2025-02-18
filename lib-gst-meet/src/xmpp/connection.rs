@@ -251,7 +251,6 @@ impl Connection {
           locked_inner.state = ReceivingFeaturesPreAuthentication;
         },
         ReceivingFeaturesPreAuthentication => {
-          info!("Starting some ReceivingFeaturesPreAuthentication stuff");
           let auth = match &locked_inner.authentication {
             Authentication::Anonymous => Auth {
               mechanism: Mechanism::Anonymous,
@@ -273,14 +272,11 @@ impl Connection {
               data: vec![],
             },
           };
-          info!(" aboutto tx send ReceivingFeaturesPreAuthentication stuff");
           tx.send(auth.into()).await?;
-          info!("just did tx send ReceivingFeaturesPreAuthentication stuff");
           locked_inner.state = Authenticating;
         },
         Authenticating => {
           Success::try_from(element)?;
-          info!("Some Auth Success stuff");
 
           let open = Open::new(locked_inner.xmpp_domain.clone());
           tx.send(open.into()).await?;

@@ -8,6 +8,11 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <glib.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <gst/gst.h>
 
 typedef struct Connection Connection;
@@ -28,6 +33,8 @@ typedef struct Participant {
   const char *muc_jid;
   const char *nick;
 } Participant;
+
+typedef enum {VIDEO, AUDIO} MediaType;
 
 struct Context *gstmeet_init(void);
 
@@ -73,5 +80,10 @@ void gstmeet_conference_on_participant(struct Context *context,
 bool gstmeet_conference_set_pipeline_state(struct Context *context,
                                            JitsiConference *conference,
                                            GstState state);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif  /* gstmeet_h */
